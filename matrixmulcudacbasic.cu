@@ -29,7 +29,7 @@ void matrixMultiplySerial(float *A, float *B, float *C, int M, int N, int K) {
         for (int j = 0; j < N; j++) {
             float sum = 0;
             for (int x = 0; x < K; x++) {
-                sum += A[i * K + x] * b[x * N + j];
+                sum += A[i * K + x] * B[x * N + j];
             }
             C[i * N + j] = sum;
         }
