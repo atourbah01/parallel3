@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <cuda.h>
+#include <stdlib.h>
+#include <cuda_runtime.h>
+#include <sys/time.h>
 
 #define BlockSize 16
 #define M 1024
@@ -95,6 +98,7 @@ int main() {
     printf("Speedup: %.2f\n", speedup);
     printf("Efficiency: %.2f\n", efficiency);
     printf("Scalability: %.2f\n", scalability);
+    
     // Copy the result back to the host
     cudaMemcpy(h_c, d_c, size_c, cudaMemcpyDeviceToHost);
 
@@ -120,5 +124,6 @@ int main() {
     cudaEventDestroy(stop);
     cudaEventDestroy(start1);
     cudaEventDestroy(stop1);
+    
     return 0;
 }
