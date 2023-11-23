@@ -31,11 +31,6 @@ void matrixMultiplySerial(int *a, int *b, int *c, int m, int n, int k) {
         }
     }
 }
-long long currentMillis(){
-   struct timeval te;
-   gettimeofday(&te, NULL);
-   return te.tv_sec * 1000LL + te.tv_usec / 1000;
-}
 
 int main() {
     float *h_a, *h_b, *h_c; // host matrices
@@ -67,7 +62,7 @@ int main() {
     // Copy matrices from host to device
     cudaMemcpy(d_a, h_a, size_a, cudaMemcpyHostToDevice);
     cudaMemcpy(d_b, h_b, size_b, cudaMemcpyHostToDevice);
-    cudaEvent_t start, stop;
+    cudaEvent_t start, stop, start1, stop1;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     cudaEventRecord(start);
@@ -82,13 +77,18 @@ int main() {
     cudaEventElapsedTime(&paralleltime, start, stop);
     printf("Parallel Execution Time: %.2f milliseconds\n",paralleltime);
     
-    long long startSerial = currentMillis();
+    cudaEventCreate(&start1);
+    cudaEventCreate(&stop1);
+    cudaEventRecord(start1);
     matrixMultiplySerial(h_a,h_b,h_c,M,N,K);
-    long long endSerial = currentMillis();
-    printf("Serial Execution Time: %lld milliseconds\n",endSerial-startSerial);
+    cudaEventRecord(stop1);
+    cudaEventSynchronize(stop1);
+    float sequentialtime = 0;
+    cudaEventElapsedTime(&sequentialtime, start1, stop1);
+    printf("Serial Execution Time: %.2f milliseconds\n", sequentialtime);
     
     // Calculate Speedup factor, efficiency and scalability
-    double speedup= (double) (endSerial-startSerial)/paralleltime;
+    double speedup= (double) sequentialtime/paralleltime;
     double efficiency= speedup / (dimGrid.x*dimGrid.y);
     double scalability= speedup / (dimGrid.x*dimGrid.y*dimBlock.x*dimBlock.y);
     
@@ -114,6 +114,11 @@ int main() {
     cudaFree(d_a);
     cudaFree(d_b);
     cudaFree(d_c);
-
+    
+    // Release CUDA events
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    cudaEventDestroy(start1);
+    cudaEventDestroy(stop1);
     return 0;
 }
