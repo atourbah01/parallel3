@@ -15,56 +15,51 @@ __global__ void matrixMulBasic(float *A, float *B, float *C, int M, int N, int K
     int col = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (row < M && col < N) {
-        int sum = 0;
+        float sum = 0;
         for (int i = 0; i < K; i++) {
-            sum += a[row * K + i] * b[i * N + col];
+            sum += A[row * K + i] * B[i * N + col];
         }
-        c[row * N + col] = sum;
+        C[row * N + col] = sum;
     }
 }
+
 //Function to perform serial matrix multiplication
-void matrixMultiplySerial(int *a, int *b, int *c, int m, int n, int k) {
-    for (int i = 0; i < m; i++) {
-        for (int j = 0; j < n; j++) {
-            int sum = 0;
-            for (int x = 0; x < k; x++) {
-                sum += a[i * k + x] * b[x * n + j];
+void matrixMultiplySerial(float *A, float *B, float *C, int M, int N, int K) {
+    for (int i = 0; i < M; i++) {
+        for (int j = 0; j < N; j++) {
+            float sum = 0;
+            for (int x = 0; x < K; x++) {
+                sum += A[i * K + x] * b[x * N + j];
             }
-            c[i * n + j] = sum;
+            C[i * N + j] = sum;
         }
     }
 }
 
 int main() {
-    float *h_a, *h_b, *h_c; // host matrices
-    float *d_a, *d_b, *d_c; // device matrices
-
-    float size_a = M * K * sizeof(float);
-    float size_b = K * N * sizeof(float);
-    float size_c = M * N * sizeof(float);
-
-    // Allocate memory for host matrices
-    h_a = (float *)malloc(size_a);
-    h_b = (float *)malloc(size_b);
-    h_c = (float *)malloc(size_c);
+    // Allocate memory host matrices
+    float *h_a = (float *)malloc(M * K * sizeof(float));
+    float *h_b = (float *)malloc(K * N * sizeof(float));
+    float *h_c = (float *)malloc(M * N * sizeof(float));
 
     // Initialize matrices
     for (int i = 0; i < M * K; ++i) {
-        h_a[i] = rand() % 10;
+        h_a[i] = rand() % 100;
     }
 
     for (int i = 0; i < K * N; ++i) {
-        h_b[i] = rand() % 10;
+        h_b[i] = rand() % 100;
     }
-
-    // Allocate memory on the device
-    cudaMalloc((void **)&d_a, size_a);
-    cudaMalloc((void **)&d_b, size_b);
-    cudaMalloc((void **)&d_c, size_c);
+    
+    // Allocate device memory
+    float *d_a, *d_b, *d_c;
+    cudaMalloc((void **)&d_a, M * K * sizeof(float));
+    cudaMalloc((void **)&d_b, K * N * sizeof(float));
+    cudaMalloc((void **)&d_c, M * N * sizeof(float));
 
     // Copy matrices from host to device
-    cudaMemcpy(d_a, h_a, size_a, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_b, h_b, size_b, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_a, h_a, M * K * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b, h_b, K * N * sizeof(float), cudaMemcpyHostToDevice);
     cudaEvent_t start, stop, start1, stop1;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -83,7 +78,7 @@ int main() {
     cudaEventCreate(&start1);
     cudaEventCreate(&stop1);
     cudaEventRecord(start1);
-    matrixMultiplySerial(h_a,h_b,h_c,M,N,K);
+    matrixMultiplySerial(h_a, h_b, h_c, M, N, K);
     cudaEventRecord(stop1);
     cudaEventSynchronize(stop1);
     float sequentialtime = 0;
