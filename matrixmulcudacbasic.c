@@ -95,7 +95,7 @@ int main() {
     printf("Scalability: %.2f\n", scalability);
     
     // Copy the result back to the host
-    cudaMemcpy(h_c, d_c, size_c, cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_c, d_c, M * N * sizeof(float), cudaMemcpyDeviceToHost);
 
     // Print the result (optional)
     printf("Result Matrix:\n");
@@ -107,12 +107,13 @@ int main() {
     }
 
     // Free memory
-    free(h_a);
-    free(h_b);
-    free(h_c);
     cudaFree(d_a);
     cudaFree(d_b);
     cudaFree(d_c);
+    
+    free(h_a);
+    free(h_b);
+    free(h_c);
     
     // Release CUDA events
     cudaEventDestroy(start);
