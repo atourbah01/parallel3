@@ -99,8 +99,8 @@ int main() {
 
     // Print the result (optional)
     printf("Result Matrix:\n");
-    for (int i = 0; i < M; ++i) {
-        for (int j = 0; j < N; ++j) {
+    for (int i = 0; i < M; i++) {
+        for (int j = 0; j < N; j++) {
             printf("%d\t", h_c[i * N + j]);
         }
         printf("\n");
