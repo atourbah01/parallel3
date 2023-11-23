@@ -35,7 +35,7 @@ __global__ void matrixMulTiled(float *a, float *b, float *c, int m, int n, int k
         __syncthreads();
 
         // Compute partial result for the tile
-        for (int i = 0; i < TILE_SIZE; ++i) {
+        for (int i = 0; i < TILE_SIZE; i++) {
             result += tileA[threadIdx.y][i] * tileB[i][threadIdx.x];
         }
 
@@ -51,10 +51,10 @@ __global__ void matrixMulTiled(float *a, float *b, float *c, int m, int n, int k
 
 // Function to perform matrix multiplication on the CPU
 void matrixMulCPU(float *a, float *b, float *c, int m, int n, int k) {
-    for (int i = 0; i < m; ++i) {
-        for (int j = 0; j < n; ++j) {
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
             int sum = 0;
-            for (int x = 0; x < k; ++x) {
+            for (int x = 0; x < k; x++) {
                 sum += a[i * k + x] * b[x * n + j];
             }
             c[i * n + j] = sum;
@@ -65,10 +65,6 @@ void matrixMulCPU(float *a, float *b, float *c, int m, int n, int k) {
 int main() {
     float *h_a, *h_b, *h_c, *h_c_cpu; 
     float *d_a, *d_b, *d_c; // device matrices
-
-    float size_a = M * K * sizeof(float);
-    float size_b = K * N * sizeof(float);
-    float size_c = M * N * sizeof(float);
 
     // Allocate memory for host matrices
     h_a = (float *)malloc(size_a);
@@ -86,13 +82,13 @@ int main() {
     }
 
     // Allocate memory on the device
-    cudaMalloc((void **)&d_a, size_a);
-    cudaMalloc((void **)&d_b, size_b);
-    cudaMalloc((void **)&d_c, size_c);
+    cudaMalloc((void **)&d_a, M * K * sizeof(float));
+    cudaMalloc((void **)&d_b, K * N * sizeof(float));
+    cudaMalloc((void **)&d_c, M * N * sizeof(float));
 
     // Copy matrices from host to device
-    cudaMemcpy(d_a, h_a, size_a, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_b, h_b, size_b, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_a, h_a, M * K * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b, h_b, K * N * sizeof(float), cudaMemcpyHostToDevice);
 
     // Record start time for parallel execution
     cudaEvent_t start, stop, start1, stop1;
@@ -113,7 +109,7 @@ int main() {
     cudaEventElapsedTime(&parallelTime, start, stop);
 
     // Copy the result back to the host
-    cudaMemcpy(h_c, d_c, size_c, cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_c, d_c, M * N * sizeof(float), cudaMemcpyDeviceToHost);
 
     // Record start time for sequential execution (on CPU)
     cudaEventCreate(&start1);
@@ -131,16 +127,16 @@ int main() {
     cudaEventElapsedTime(&sequentialTime, start1, stop1);
 
     // Calculate speedup, efficiency, and scalability
-    float speedup = sequentialtime / parallelTime;
-    float efficiency = speedup / (dimGrid.x * dimGrid.y);
-    float scalability = speedup / (dimGrid.x * dimGrid.y * dimBlock.x * dimBlock.y);
+    double speedup = (double) sequentialTime / parallelTime;
+    double efficiency = speedup / (dimGrid.x * dimGrid.y);
+    double scalability = speedup / (dimGrid.x * dimGrid.y * dimBlock.x * dimBlock.y);
 
     // Print performance metrics
-    printf("Parallel Execution Time: %f ms\n", parallelTime);
-    printf("Sequential Execution Time: %f s\n", sequentialTime);
-    printf("Speedup: %f\n", speedup);
-    printf("Efficiency: %f\n", efficiency);
-    printf("Scalability: %f\n", scalability);
+    printf("Parallel Execution Time: %.2f ms\n", parallelTime);
+    printf("Sequential Execution Time: %.2f s\n", sequentialTime);
+    printf("Speedup: %.2f\n", speedup);
+    printf("Efficiency: %.2f\n", efficiency);
+    printf("Scalability: %.2f\n", scalability);
 
     // Free memory
     free(h_a);
