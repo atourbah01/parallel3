@@ -1,23 +1,22 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <cuda_runtime.h>
-#include <sys/time.h>
+#include <cuda.h>
 
+#define BlockSize 16
 #define M 1024
 #define N 1024
 #define K 1024
 
 // CUDA kernel for matrix multiplication
-__global__ void matrixMulBasic(int *a, int *b, int *c, int m, int n, int k) {
+__global__ void matrixMulBasic(float *A, float *B, float *C, int M, int N, int K) {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (row < m && col < n) {
+    if (row < M && col < N) {
         int sum = 0;
-        for (int i = 0; i < k; i++) {
-            sum += a[row * k + i] * b[i * n + col];
+        for (int i = 0; i < K; i++) {
+            sum += a[row * K + i] * b[i * N + col];
         }
-        c[row * n + col] = sum;
+        c[row * N + col] = sum;
     }
 }
 //Function to perform serial matrix multiplication
@@ -39,17 +38,17 @@ long long currentMillis(){
 }
 
 int main() {
-    int *h_a, *h_b, *h_c; // host matrices
-    int *d_a, *d_b, *d_c; // device matrices
+    float *h_a, *h_b, *h_c; // host matrices
+    float *d_a, *d_b, *d_c; // device matrices
 
-    int size_a = M * K * sizeof(int);
-    int size_b = K * N * sizeof(int);
-    int size_c = M * N * sizeof(int);
+    float size_a = M * K * sizeof(float);
+    float size_b = K * N * sizeof(float);
+    float size_c = M * N * sizeof(float);
 
     // Allocate memory for host matrices
-    h_a = (int *)malloc(size_a);
-    h_b = (int *)malloc(size_b);
-    h_c = (int *)malloc(size_c);
+    h_a = (float *)malloc(size_a);
+    h_b = (float *)malloc(size_b);
+    h_c = (float *)malloc(size_c);
 
     // Initialize matrices
     for (int i = 0; i < M * K; ++i) {
@@ -68,16 +67,20 @@ int main() {
     // Copy matrices from host to device
     cudaMemcpy(d_a, h_a, size_a, cudaMemcpyHostToDevice);
     cudaMemcpy(d_b, h_b, size_b, cudaMemcpyHostToDevice);
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start);
 
     // Define block and grid dimensions
-    dim3 dimBlock(16, 16, 1); // You can experiment with different block sizes
+    dim3 dimBlock(BlockSize, BlockSize); 
     dim3 dimGrid((N + dimBlock.x - 1) / dimBlock.x, (M + dimBlock.y - 1) / dimBlock.y);
-    
-    long long startParallel = currentMillis();
-    // Launch the kernel
     matrixMulBasic<<<dimGrid, dimBlock>>>(d_a, d_b, d_c, M, N, K);
-    long long endParallel = currentMillis();
-    printf("Parallel Execution Time: %lld milliseconds\n",endParallel-startParallel);
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    float paralleltime = 0;
+    cudaEventElapsedTime(&paralleltime, start, stop);
+    printf("Parallel Execution Time: %.2f milliseconds\n",paralleltime);
     
     long long startSerial = currentMillis();
     matrixMultiplySerial(h_a,h_b,h_c,M,N,K);
@@ -85,8 +88,8 @@ int main() {
     printf("Serial Execution Time: %lld milliseconds\n",endSerial-startSerial);
     
     // Calculate Speedup factor, efficiency and scalability
-    double speedup= (double) (endSerial-startSerial)/(endParallel-startParallel);
-    double efficiency= speedup / (dimGrid.x*dimGrid.y*dimBlock.x*dimBlock.y);
+    double speedup= (double) (endSerial-startSerial)/paralleltime;
+    double efficiency= speedup / (dimGrid.x*dimGrid.y);
     double scalability= speedup / (dimGrid.x*dimGrid.y*dimBlock.x*dimBlock.y);
     
     printf("Speedup: %.2f\n", speedup);
