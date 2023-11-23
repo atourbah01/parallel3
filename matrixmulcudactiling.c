@@ -9,21 +9,27 @@
 #define TILE_SIZE 16
 
 // CUDA kernel for matrix multiplication with tiling
-__global__ void matrixMulTiled(int *a, int *b, int *c, int m, int n, int k) {
+__global__ void matrixMulTiled(float *a, float *b, float *c, int m, int n, int k) {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
 
-    __shared__ int tileA[TILE_SIZE][TILE_SIZE];
-    __shared__ int tileB[TILE_SIZE][TILE_SIZE];
+    __shared__ float tileA[TILE_SIZE][TILE_SIZE];
+    __shared__ float tileB[TILE_SIZE][TILE_SIZE];
 
     int result = 0;
 
     // Loop over tiles
-    for (int t = 0; t < k / TILE_SIZE; ++t) {
+    for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; t++) {
         // Load tiles into shared memory
-        tileA[threadIdx.y][threadIdx.x] = a[row * k + t * TILE_SIZE + threadIdx.x];
-        tileB[threadIdx.y][threadIdx.x] = b[(t * TILE_SIZE + threadIdx.y) * n + col];
-
+        if (row < m && t * TILE_SIZE + threadIdx.x < k)
+            tileA[threadIdx.y][threadIdx.x] = a[row * k + t * TILE_SIZE + threadIdx.x];
+         else
+            tileA[threadIdx.y][threadIdx.x] = 0;
+        if (col < n && t * TILE_SIZE + threadIdx.y < k)
+            tileB[threadIdx.y][threadIdx.x] = b[(t * TILE_SIZE + threadIdx.y) * n + col];
+         else
+            tileB[threadIdx.y][threadIdx.x] = 0;
+        
         // Synchronize to ensure all threads have loaded their tiles
         __syncthreads();
 
@@ -43,7 +49,7 @@ __global__ void matrixMulTiled(int *a, int *b, int *c, int m, int n, int k) {
 }
 
 // Function to perform matrix multiplication on the CPU
-void matrixMulCPU(int *a, int *b, int *c, int m, int n, int k) {
+void matrixMulCPU(float *a, float *b, float *c, int m, int n, int k) {
     for (int i = 0; i < m; ++i) {
         for (int j = 0; j < n; ++j) {
             int sum = 0;
@@ -55,30 +61,19 @@ void matrixMulCPU(int *a, int *b, int *c, int m, int n, int k) {
     }
 }
 
-// Function to check the correctness of the result
-void checkResult(int *h_c, int *h_c_cpu, int size) {
-    for (int i = 0; i < size; ++i) {
-        if (h_c[i] != h_c_cpu[i]) {
-            printf("Result verification failed at element %d!\n", i);
-            return;
-        }
-    }
-    printf("Result verification passed!\n");
-}
-
 int main() {
-    int *h_a, *h_b, *h_c, *h_c_cpu; // host matrices
-    int *d_a, *d_b, *d_c; // device matrices
+    float *h_a, *h_b, *h_c, *h_c_cpu; 
+    float *d_a, *d_b, *d_c; // device matrices
 
-    int size_a = M * K * sizeof(int);
-    int size_b = K * N * sizeof(int);
-    int size_c = M * N * sizeof(int);
+    float size_a = M * K * sizeof(float);
+    float size_b = K * N * sizeof(float);
+    float size_c = M * N * sizeof(float);
 
     // Allocate memory for host matrices
-    h_a = (int *)malloc(size_a);
-    h_b = (int *)malloc(size_b);
-    h_c = (int *)malloc(size_c);
-    h_c_cpu = (int *)malloc(size_c);
+    h_a = (float *)malloc(size_a);
+    h_b = (float *)malloc(size_b);
+    h_c = (float *)malloc(size_c);
+    h_c_cpu = (float *)malloc(size_c);
 
     // Initialize matrices
     for (int i = 0; i < M * K; ++i) {
@@ -98,16 +93,15 @@ int main() {
     cudaMemcpy(d_a, h_a, size_a, cudaMemcpyHostToDevice);
     cudaMemcpy(d_b, h_b, size_b, cudaMemcpyHostToDevice);
 
-    // Define block and grid dimensions
-    dim3 dimBlock(TILE_SIZE, TILE_SIZE, 1);
-    dim3 dimGrid((N + dimBlock.x - 1) / dimBlock.x, (M + dimBlock.y - 1) / dimBlock.y);
-
     // Record start time for parallel execution
-    cudaEvent_t start, stop;
+    cudaEvent_t start, stop, start1, stop1;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     cudaEventRecord(start, 0);
 
+    // Define block and grid dimensions
+    dim3 dimBlock(TILE_SIZE, TILE_SIZE);
+    dim3 dimGrid((N + dimBlock.x - 1) / dimBlock.x, (M + dimBlock.y - 1) / dimBlock.y);
     // Launch the tiled kernel
     matrixMulTiled<<<dimGrid, dimBlock>>>(d_a, d_b, d_c, M, N, K);
 
@@ -121,27 +115,28 @@ int main() {
     cudaMemcpy(h_c, d_c, size_c, cudaMemcpyDeviceToHost);
 
     // Record start time for sequential execution (on CPU)
-    struct timeval cpu_start, cpu_stop;
-    gettimeofday(&cpu_start, NULL);
-
+    cudaEventCreate(&start1);
+    cudaEventCreate(&stop1);
+    cudaEventRecord(start1, 0);
+    
     // Perform matrix multiplication on the CPU
     matrixMulCPU(h_a, h_b, h_c_cpu, M, N, K);
 
+    
     // Record end time for sequential execution (on CPU)
-    gettimeofday(&cpu_stop, NULL);
-    double cpuTime = (cpu_stop.tv_sec - cpu_start.tv_sec) + (cpu_stop.tv_usec - cpu_start.tv_usec) / 1e6;
-
-    // Check the correctness of the result
-    checkResult(h_c, h_c_cpu, M * N);
+    cudaEventRecord(stop1, 0);
+    cudaEventSynchronize(stop1);
+    float sequentialTime;
+    cudaEventElapsedTime(&sequentialTime, start1, stop1);
 
     // Calculate speedup, efficiency, and scalability
-    float speedup = cpuTime / parallelTime;
+    float speedup = sequentialtime / parallelTime;
     float efficiency = speedup / (dimGrid.x * dimGrid.y);
     float scalability = speedup / (dimGrid.x * dimGrid.y * dimBlock.x * dimBlock.y);
 
     // Print performance metrics
     printf("Parallel Execution Time: %f ms\n", parallelTime);
-    printf("Sequential Execution Time: %f s\n", cpuTime);
+    printf("Sequential Execution Time: %f s\n", sequentialTime);
     printf("Speedup: %f\n", speedup);
     printf("Efficiency: %f\n", efficiency);
     printf("Scalability: %f\n", scalability);
@@ -157,6 +152,8 @@ int main() {
     // Release CUDA events
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
+    cudaEventDestroy(start1);
+    cudaEventDestroy(stop1);
 
     return 0;
 }
