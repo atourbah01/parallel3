@@ -135,9 +135,9 @@ int main() {
     checkResult(h_c, h_c_cpu, M * N);
 
     // Calculate speedup, efficiency, and scalability
-    float speedup = cpuTime / (parallelTime / 1000.0); // Convert parallel time to seconds
-    float efficiency = speedup / dimGrid.x / dimGrid.y;
-    float scalability = speedup / dimGrid.x / dimGrid.y / (dimBlock.x * dimBlock.y);
+    float speedup = cpuTime / parallelTime;
+    float efficiency = speedup / (dimGrid.x * dimGrid.y);
+    float scalability = speedup / (dimGrid.x * dimGrid.y * dimBlock.x * dimBlock.y);
 
     // Print performance metrics
     printf("Parallel Execution Time: %f ms\n", parallelTime);
@@ -154,6 +154,9 @@ int main() {
     cudaFree(d_a);
     cudaFree(d_b);
     cudaFree(d_c);
+    // Release CUDA events
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 
     return 0;
 }
