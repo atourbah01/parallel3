@@ -26,8 +26,10 @@ __global__ void matrixMulTiled(float *a, float *b, float *c, int m, int n, int k
             tileA[threadIdx.y][threadIdx.x] = a[row * k + t * TILE_SIZE + threadIdx.x];
          else
             tileA[threadIdx.y][threadIdx.x] = 0;
+        
         if (col < n && t * TILE_SIZE + threadIdx.y < k)
             tileB[threadIdx.y][threadIdx.x] = b[(t * TILE_SIZE + threadIdx.y) * n + col];
+            
          else
             tileB[threadIdx.y][threadIdx.x] = 0;
         
@@ -48,6 +50,7 @@ __global__ void matrixMulTiled(float *a, float *b, float *c, int m, int n, int k
         c[row * n + col] = result;
     }
 }
+
 
 // Function to perform matrix multiplication on the CPU
 void matrixMulCPU(float *a, float *b, float *c, int m, int n, int k) {
@@ -139,13 +142,14 @@ int main() {
     printf("Scalability: %.2f\n", scalability);
 
     // Free memory
+    cudaFree(d_a);
+    cudaFree(d_b);
+    cudaFree(d_c);
+
     free(h_a);
     free(h_b);
     free(h_c);
     free(h_c_cpu);
-    cudaFree(d_a);
-    cudaFree(d_b);
-    cudaFree(d_c);
     // Release CUDA events
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
