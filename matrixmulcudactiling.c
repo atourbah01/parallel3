@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <cuda_runtime.h>
 #include <sys/time.h>
+#include <cuda.h>
 
 #define M 1024
 #define N 1024
